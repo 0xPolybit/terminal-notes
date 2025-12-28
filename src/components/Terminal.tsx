@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useRef, useEffect, KeyboardEvent } from 'react';
 import {
-  initDB,
   listDirectory,
   createFolder,
   createFile,
@@ -8,7 +7,6 @@ import {
   getItem,
   updateFile,
   resolvePath,
-  FileSystemItem,
 } from '@/lib/fileSystem';
 
 interface OutputLine {
@@ -17,31 +15,42 @@ interface OutputLine {
   path?: string;
 }
 
-interface TerminalProps {
-  onFileSelect?: (path: string) => void;
-  onRefresh?: () => void;
+interface TerminalState {
+  currentPath: string;
+  inputValue: string;
+  history: OutputLine[];
+  commandHistory: string[];
+  historyIndex: number;
+  editingFile: string | null;
+  editContent: string;
 }
 
-export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
-  const [currentPath, setCurrentPath] = useState('/');
-  const [inputValue, setInputValue] = useState('');
-  const [history, setHistory] = useState<OutputLine[]>([]);
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [editingFile, setEditingFile] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
+interface TerminalProps {
+  onRefresh?: () => void;
+  terminalState: TerminalState;
+  setTerminalState: React.Dispatch<React.SetStateAction<TerminalState>>;
+}
 
-  useEffect(() => {
-    initDB().then(() => {
-      setHistory([
-        { type: 'info', content: 'Welcome to TermNotes v1.0' },
-        { type: 'info', content: 'Type "help" for available commands.' },
-        { type: 'output', content: '' },
-      ]);
-    });
-  }, []);
+export const initialTerminalState: TerminalState = {
+  currentPath: '/',
+  inputValue: '',
+  history: [
+    { type: 'info', content: 'Welcome to TermNotes v1.0' },
+    { type: 'info', content: 'Type "help" for available commands.' },
+    { type: 'info', content: 'Use "edit <file>" then Ctrl+C to append or Ctrl+Z to overwrite.' },
+    { type: 'output', content: '' },
+  ],
+  commandHistory: [],
+  historyIndex: -1,
+  editingFile: null,
+  editContent: '',
+};
+
+export function Terminal({ onRefresh, terminalState, setTerminalState }: TerminalProps) {
+  const { currentPath, inputValue, history, commandHistory, historyIndex, editingFile, editContent } = terminalState;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (bodyRef.current) {
@@ -50,20 +59,31 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
   }, [history]);
 
   const focusInput = () => {
-    inputRef.current?.focus();
+    if (editingFile) {
+      textareaRef.current?.focus();
+    } else {
+      inputRef.current?.focus();
+    }
+  };
+
+  const updateState = (updates: Partial<TerminalState>) => {
+    setTerminalState((prev) => ({ ...prev, ...updates }));
   };
 
   const addOutput = (lines: OutputLine[]) => {
-    setHistory((prev) => [...prev, ...lines]);
+    setTerminalState((prev) => ({ ...prev, history: [...prev.history, ...lines] }));
   };
 
   const processCommand = async (command: string) => {
     const trimmed = command.trim();
     if (!trimmed) return;
 
-    setCommandHistory((prev) => [...prev, trimmed]);
-    setHistoryIndex(-1);
-    addOutput([{ type: 'command', content: trimmed, path: currentPath }]);
+    setTerminalState((prev) => ({
+      ...prev,
+      commandHistory: [...prev.commandHistory, trimmed],
+      historyIndex: -1,
+      history: [...prev.history, { type: 'command', content: trimmed, path: currentPath }],
+    }));
 
     const parts = trimmed.split(/\s+/);
     const cmd = parts[0].toLowerCase();
@@ -80,7 +100,7 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
             { type: 'output', content: '  mkdir <name>  - Create a new folder' },
             { type: 'output', content: '  touch <name>  - Create a new file' },
             { type: 'output', content: '  cat <file>    - Display file contents' },
-            { type: 'output', content: '  edit <file>   - Edit file contents' },
+            { type: 'output', content: '  edit <file>   - Edit (Ctrl+C=append, Ctrl+Z=overwrite)' },
             { type: 'output', content: '  rm <path>     - Remove file or folder' },
             { type: 'output', content: '  clear         - Clear terminal' },
             { type: 'output', content: '' },
@@ -107,7 +127,7 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
 
         case 'cd': {
           if (args.length === 0) {
-            setCurrentPath('/');
+            updateState({ currentPath: '/' });
             addOutput([{ type: 'output', content: '' }]);
           } else {
             const targetPath = resolvePath(currentPath, args[0]);
@@ -117,7 +137,7 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
             } else if (item.type !== 'folder') {
               addOutput([{ type: 'error', content: `cd: not a directory: ${args[0]}` }]);
             } else {
-              setCurrentPath(targetPath);
+              updateState({ currentPath: targetPath });
               addOutput([{ type: 'output', content: '' }]);
             }
           }
@@ -177,10 +197,8 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
             } else if (item.type !== 'file') {
               addOutput([{ type: 'error', content: `edit: is a directory: ${args[0]}` }]);
             } else {
-              setEditingFile(filePath);
-              setEditContent(item.content);
-              addOutput([{ type: 'info', content: `Editing ${args[0]}...` }]);
-              onFileSelect?.(filePath);
+              updateState({ editingFile: filePath, editContent: item.content });
+              addOutput([{ type: 'info', content: `Editing ${args[0]}... (Ctrl+C=append, Ctrl+Z=overwrite, Esc=cancel)` }]);
             }
           }
           break;
@@ -199,13 +217,13 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
         }
 
         case 'clear':
-          setHistory([]);
+          updateState({ history: [] });
           break;
 
         default:
           addOutput([{ type: 'error', content: `Command not found: ${cmd}. Type "help" for available commands.` }]);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       addOutput([{ type: 'error', content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }]);
     }
   };
@@ -213,41 +231,54 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       processCommand(inputValue);
-      setInputValue('');
+      updateState({ inputValue: '' });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (commandHistory.length > 0) {
         const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
-        setHistoryIndex(newIndex);
-        setInputValue(commandHistory[commandHistory.length - 1 - newIndex] || '');
+        updateState({
+          historyIndex: newIndex,
+          inputValue: commandHistory[commandHistory.length - 1 - newIndex] || '',
+        });
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (historyIndex > 0) {
         const newIndex = historyIndex - 1;
-        setHistoryIndex(newIndex);
-        setInputValue(commandHistory[commandHistory.length - 1 - newIndex] || '');
+        updateState({
+          historyIndex: newIndex,
+          inputValue: commandHistory[commandHistory.length - 1 - newIndex] || '',
+        });
       } else {
-        setHistoryIndex(-1);
-        setInputValue('');
+        updateState({ historyIndex: -1, inputValue: '' });
       }
     }
   };
 
-  const saveEdit = async () => {
-    if (editingFile) {
-      await updateFile(editingFile, editContent);
-      addOutput([{ type: 'success', content: `Saved: ${editingFile}` }]);
-      setEditingFile(null);
-      setEditContent('');
-      onRefresh?.();
+  const handleEditKeyDown = async (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      updateState({ editingFile: null, editContent: '' });
+      addOutput([{ type: 'info', content: 'Edit cancelled.' }]);
+    } else if (e.ctrlKey && e.key === 'c') {
+      e.preventDefault();
+      if (editingFile) {
+        const item = await getItem(editingFile);
+        const newContent = (item?.content || '') + editContent;
+        await updateFile(editingFile, newContent);
+        addOutput([{ type: 'success', content: `Appended to: ${editingFile}` }]);
+        updateState({ editingFile: null, editContent: '' });
+        onRefresh?.();
+      }
+    } else if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault();
+      if (editingFile) {
+        await updateFile(editingFile, editContent);
+        addOutput([{ type: 'success', content: `Overwritten: ${editingFile}` }]);
+        updateState({ editingFile: null, editContent: '' });
+        onRefresh?.();
+      }
     }
-  };
-
-  const cancelEdit = () => {
-    setEditingFile(null);
-    setEditContent('');
-    addOutput([{ type: 'info', content: 'Edit cancelled.' }]);
   };
 
   return (
@@ -277,26 +308,18 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
 
         {editingFile ? (
           <div className="mt-2">
+            <div className="text-xs text-muted-foreground mb-2">
+              Editing: {editingFile} | Ctrl+C = append | Ctrl+Z = overwrite | Esc = cancel
+            </div>
             <textarea
+              ref={textareaRef}
               value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
+              onChange={(e) => updateState({ editContent: e.target.value })}
+              onKeyDown={handleEditKeyDown}
               className="w-full h-48 bg-muted/30 border border-border rounded p-2 text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
               autoFocus
+              placeholder="Type your content here..."
             />
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={saveEdit}
-                className="px-4 py-1 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 transition-colors"
-              >
-                Save (Ctrl+S)
-              </button>
-              <button
-                onClick={cancelEdit}
-                className="px-4 py-1 bg-muted text-muted-foreground rounded text-sm hover:bg-muted/80 transition-colors"
-              >
-                Cancel (Esc)
-              </button>
-            </div>
           </div>
         ) : (
           <div className="terminal-line">
@@ -305,12 +328,11 @@ export function Terminal({ onFileSelect, onRefresh }: TerminalProps) {
               ref={inputRef}
               type="text"
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => updateState({ inputValue: e.target.value })}
               onKeyDown={handleKeyDown}
               className="terminal-input"
               autoFocus
             />
-            <span className="terminal-cursor" />
           </div>
         )}
       </div>
