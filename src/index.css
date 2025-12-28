@@ -128,11 +128,9 @@
   }
 
   .terminal-input {
-    @apply bg-transparent border-none outline-none text-foreground flex-1 caret-primary;
-  }
-
-  .terminal-cursor {
-    @apply inline-block w-2 h-4 bg-primary animate-blink;
+    @apply bg-transparent border-none outline-none text-foreground flex-1;
+    caret-color: hsl(var(--primary));
+    caret-shape: block;
   }
 
   .glow-text {
