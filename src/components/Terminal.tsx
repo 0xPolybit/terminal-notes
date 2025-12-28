@@ -37,7 +37,7 @@ export const initialTerminalState: TerminalState = {
   history: [
     { type: 'info', content: 'Welcome to TermNotes v1.0' },
     { type: 'info', content: 'Type "help" for available commands.' },
-    { type: 'info', content: 'Use "edit <file>" then Ctrl+C to append or Ctrl+Z to overwrite.' },
+    { type: 'info', content: 'Use "edit <file>" then Ctrl+C to save or Esc to cancel.' },
     { type: 'output', content: '' },
   ],
   commandHistory: [],
@@ -100,7 +100,7 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
             { type: 'output', content: '  mkdir <name>  - Create a new folder' },
             { type: 'output', content: '  touch <name>  - Create a new file' },
             { type: 'output', content: '  cat <file>    - Display file contents' },
-            { type: 'output', content: '  edit <file>   - Edit (Ctrl+C=append, Ctrl+Z=overwrite)' },
+            { type: 'output', content: '  edit <file>   - Edit (Ctrl+C=save, Esc=cancel)' },
             { type: 'output', content: '  rm <path>     - Remove file or folder' },
             { type: 'output', content: '  clear         - Clear terminal' },
             { type: 'output', content: '' },
@@ -198,7 +198,7 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
               addOutput([{ type: 'error', content: `edit: is a directory: ${args[0]}` }]);
             } else {
               updateState({ editingFile: filePath, editContent: item.content });
-              addOutput([{ type: 'info', content: `Editing ${args[0]}... (Ctrl+C=append, Ctrl+Z=overwrite, Esc=cancel)` }]);
+              addOutput([{ type: 'info', content: `Editing ${args[0]}... (Ctrl+C=save, Esc=cancel)` }]);
             }
           }
           break;
@@ -263,18 +263,8 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
     } else if (e.ctrlKey && e.key === 'c') {
       e.preventDefault();
       if (editingFile) {
-        const item = await getItem(editingFile);
-        const newContent = (item?.content || '') + editContent;
-        await updateFile(editingFile, newContent);
-        addOutput([{ type: 'success', content: `Appended to: ${editingFile}` }]);
-        updateState({ editingFile: null, editContent: '' });
-        onRefresh?.();
-      }
-    } else if (e.ctrlKey && e.key === 'z') {
-      e.preventDefault();
-      if (editingFile) {
         await updateFile(editingFile, editContent);
-        addOutput([{ type: 'success', content: `Overwritten: ${editingFile}` }]);
+        addOutput([{ type: 'success', content: `Saved: ${editingFile}` }]);
         updateState({ editingFile: null, editContent: '' });
         onRefresh?.();
       }
@@ -309,7 +299,7 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
         {editingFile ? (
           <div className="mt-2">
             <div className="text-xs text-muted-foreground mb-2">
-              Editing: {editingFile} | Ctrl+C = append | Ctrl+Z = overwrite | Esc = cancel
+              Editing: {editingFile} | Ctrl+C = save | Esc = cancel
             </div>
             <textarea
               ref={textareaRef}
