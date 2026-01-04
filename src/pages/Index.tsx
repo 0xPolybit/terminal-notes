@@ -32,74 +32,74 @@ const Index = () => {
     );
   }
 
-  return (
-    <main className="min-h-screen bg-background p-4 md:p-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30 glow-border">
-            <TerminalSquare className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground glow-text">TermNotes</h1>
-            <p className="text-xs text-muted-foreground">Terminal-style note taking</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <a
-              href="https://github.com/0xPolybit/terminal-notes"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Github className="w-5 h-5" />
-            </a>
-            <a
-              href="https://www.linkedin.com/in/polybit/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Linkedin className="w-5 h-5" />
-            </a>
-          </div>
-          <button
-            onClick={() => setViewMode(viewMode === 'terminal' ? 'folder' : 'terminal')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/50 border border-border hover:bg-secondary hover:border-primary/50 transition-all text-sm"
-          >
-            {viewMode === 'terminal' ? (
-              <>
-                <FolderIcon className="w-4 h-4 text-primary" />
-                <span>Switch to Folder View</span>
-              </>
-            ) : (
-              <>
-                <TerminalSquare className="w-4 h-4 text-primary" />
-                <span>Switch to Terminal</span>
-              </>
-            )}
-          </button>
-        </div>
-      </header>
-
-      <section className="h-[calc(100vh-140px)]">
+  const headerActions = (
+    <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        <a
+          href="https://github.com/0xPolybit/terminal-notes"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Github className="w-5 h-5" />
+        </a>
+        <a
+          href="https://www.linkedin.com/in/polybit/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Linkedin className="w-5 h-5" />
+        </a>
+      </div>
+      <button
+        onClick={() => setViewMode(viewMode === 'terminal' ? 'folder' : 'terminal')}
+        className="flex items-center gap-2 px-3 py-1 rounded-lg bg-secondary/50 border border-border hover:bg-secondary hover:border-primary/50 transition-all text-xs"
+      >
         {viewMode === 'terminal' ? (
-          <Terminal onRefresh={handleRefresh} terminalState={terminalState} setTerminalState={setTerminalState} />
+          <>
+            <FolderIcon className="w-3 h-3 text-primary" />
+            <span>Folder View</span>
+          </>
+        ) : (
+          <>
+            <TerminalSquare className="w-3 h-3 text-primary" />
+            <span>Terminal</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+
+  return (
+    <main className="h-screen bg-background p-4 md:p-8 flex flex-col">
+      <section className="flex-1 min-h-0">
+        {viewMode === 'terminal' ? (
+          <Terminal 
+            onRefresh={handleRefresh} 
+            terminalState={terminalState} 
+            setTerminalState={setTerminalState} 
+            headerActions={headerActions}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-            <div className="terminal-window md:col-span-1">
-              <div className="terminal-header">
-                <div className="terminal-dot bg-destructive" />
-                <div className="terminal-dot bg-yellow-500" />
-                <div className="terminal-dot bg-green-500" />
-                <span className="ml-4 text-sm text-muted-foreground">Explorer</span>
+            <div className="terminal-window md:col-span-1 flex flex-col">
+              <div className="terminal-header justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="terminal-dot bg-destructive" />
+                  <div className="terminal-dot bg-yellow-500" />
+                  <div className="terminal-dot bg-green-500" />
+                  <span className="ml-4 text-sm text-muted-foreground">Explorer</span>
+                </div>
+                {headerActions}
               </div>
-              <FolderTree
-                onFileSelect={handleFileSelect}
-                selectedFile={selectedFile}
-                refreshKey={refreshKey}
-              />
+              <div className="flex-1 overflow-hidden">
+                <FolderTree
+                  onFileSelect={handleFileSelect}
+                  selectedFile={selectedFile}
+                  refreshKey={refreshKey}
+                />
+              </div>
             </div>
             <div className="md:col-span-2 h-full">
               <FileEditor
