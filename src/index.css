@@ -116,7 +116,7 @@
   }
 
   .terminal-output {
-    @apply text-terminal-text whitespace-pre-wrap;
+    @apply text-foreground whitespace-pre-wrap;
   }
 
   .terminal-error {
