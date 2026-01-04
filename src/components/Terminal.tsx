@@ -10,7 +10,7 @@ import {
 } from '@/lib/fileSystem';
 
 interface OutputLine {
-  type: 'command' | 'output' | 'error' | 'success' | 'info';
+  type: 'command' | 'output' | 'error' | 'success' | 'info' | 'muted';
   content: string;
   path?: string;
 }
@@ -29,15 +29,15 @@ interface TerminalProps {
   onRefresh?: () => void;
   terminalState: TerminalState;
   setTerminalState: React.Dispatch<React.SetStateAction<TerminalState>>;
+  headerActions?: React.ReactNode;
 }
 
 export const initialTerminalState: TerminalState = {
   currentPath: '/',
   inputValue: '',
   history: [
-    { type: 'info', content: 'Welcome to TermNotes v1.0' },
-    { type: 'info', content: 'Type "help" for available commands.' },
-    { type: 'info', content: 'Use "edit <file>" then Ctrl+C to save or Esc to cancel.' },
+    { type: 'info', content: 'Welcome to terminalnotes v1.1' },
+    { type: 'output', content: 'Type "help" for available commands.' },
     { type: 'output', content: '' },
   ],
   commandHistory: [],
@@ -46,7 +46,12 @@ export const initialTerminalState: TerminalState = {
   editContent: '',
 };
 
-export function Terminal({ onRefresh, terminalState, setTerminalState }: TerminalProps) {
+const formatPath = (path: string) => {
+  if (path === '/') return '';
+  return path.startsWith('/') ? path.slice(1) : path;
+};
+
+export function Terminal({ onRefresh, terminalState, setTerminalState, headerActions }: TerminalProps) {
   const { currentPath, inputValue, history, commandHistory, historyIndex, editingFile, editContent } = terminalState;
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -114,7 +119,7 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
         case 'ls': {
           const items = await listDirectory(currentPath);
           if (items.length === 0) {
-            addOutput([{ type: 'output', content: '(empty)' }, { type: 'output', content: '' }]);
+            addOutput([{ type: 'muted', content: '(empty)' }, { type: 'output', content: '' }]);
           } else {
             const lines = items.map((item) => ({
               type: 'output' as const,
@@ -273,11 +278,14 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
 
   return (
     <div className="terminal-window h-full flex flex-col" onClick={focusInput}>
-      <div className="terminal-header">
-        <div className="terminal-dot bg-destructive" />
-        <div className="terminal-dot bg-yellow-500" />
-        <div className="terminal-dot bg-green-500" />
-        <span className="ml-4 text-sm text-muted-foreground">TermNotes — {currentPath}</span>
+      <div className="terminal-header justify-between">
+        <div className="flex items-center gap-2">
+          <div className="terminal-dot bg-destructive" />
+          <div className="terminal-dot bg-yellow-500" />
+          <div className="terminal-dot bg-green-500" />
+          <span className="ml-4 text-sm text-muted-foreground">terminalnotes — {currentPath}</span>
+        </div>
+        {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
       </div>
       
       <div ref={bodyRef} className="terminal-body flex-1 scrollbar-thin">
@@ -285,11 +293,12 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
           <div key={i} className="terminal-line">
             {line.type === 'command' && (
               <>
-                <span className="terminal-prompt">{line.path || currentPath} $</span>
+                <span className="terminal-prompt">{formatPath(line.path || currentPath)} $</span>
                 <span className="text-foreground">{line.content}</span>
               </>
             )}
             {line.type === 'output' && <span className="terminal-output">{line.content}</span>}
+            {line.type === 'muted' && <span className="text-terminal-text whitespace-pre-wrap">{line.content}</span>}
             {line.type === 'error' && <span className="terminal-error">{line.content}</span>}
             {line.type === 'success' && <span className="terminal-success">{line.content}</span>}
             {line.type === 'info' && <span className="text-primary glow-text">{line.content}</span>}
@@ -313,7 +322,7 @@ export function Terminal({ onRefresh, terminalState, setTerminalState }: Termina
           </div>
         ) : (
           <div className="terminal-line">
-            <span className="terminal-prompt">{currentPath} $</span>
+            <span className="terminal-prompt">{formatPath(currentPath)} $</span>
             <input
               ref={inputRef}
               type="text"
