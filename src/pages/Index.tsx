@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TerminalSquare, FolderTree as FolderIcon, Github, Linkedin } from 'lucide-react';
+import { TerminalSquare, FolderTree as FolderIcon } from 'lucide-react';
 import { Terminal, initialTerminalState } from '@/components/Terminal';
 import { FolderTree } from '@/components/FolderTree';
 import { FileEditor } from '@/components/FileEditor';
@@ -34,24 +34,6 @@ const Index = () => {
 
   const headerActions = (
     <div className="flex items-center gap-4">
-      <div className="flex items-center gap-2">
-        <a
-          href="https://github.com/0xPolybit/terminal-notes"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Github className="w-5 h-5" />
-        </a>
-        <a
-          href="https://www.linkedin.com/in/polybit/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Linkedin className="w-5 h-5" />
-        </a>
-      </div>
       <button
         onClick={() => setViewMode(viewMode === 'terminal' ? 'folder' : 'terminal')}
         className="flex items-center gap-2 px-3 py-1 rounded-lg bg-secondary/50 border border-border hover:bg-secondary hover:border-primary/50 transition-all text-xs"
