@@ -51,6 +51,27 @@ const formatPath = (path: string) => {
   return path.startsWith('/') ? path.slice(1) : path;
 };
 
+const renderContent = (content: string) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = content.split(urlRegex);
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline underline-offset-2 transition-all"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 export function Terminal({ onRefresh, terminalState, setTerminalState, headerActions }: TerminalProps) {
   const { currentPath, inputValue, history, commandHistory, historyIndex, editingFile, editContent } = terminalState;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +128,20 @@ export function Terminal({ onRefresh, terminalState, setTerminalState, headerAct
             { type: 'output', content: '  cat <file>    - Display file contents' },
             { type: 'output', content: '  edit <file>   - Edit (Ctrl+C=save, Esc=cancel)' },
             { type: 'output', content: '  rm <path>     - Remove file or folder' },
+            { type: 'output', content: '  credits       - Show developer information' },
             { type: 'output', content: '  clear         - Clear terminal' },
+            { type: 'output', content: '' },
+          ]);
+          break;
+
+        case 'credits':
+          addOutput([
+            { type: 'info', content: 'Developer Details:' },
+            { type: 'output', content: '  Name:     Swastik Biswas' },
+            { type: 'output', content: '  Degree:   B.Tech CSE, KIIT Bhubaneshwar' },
+            { type: 'output', content: '  Age:      19 (Born: 1st Oct 2006)' },
+            { type: 'output', content: '  GitHub:   https://github.com/0xPolybit' },
+            { type: 'output', content: '  LinkedIn: https://www.linkedin.com/in/polybit/' },
             { type: 'output', content: '' },
           ]);
           break;
@@ -297,11 +331,11 @@ export function Terminal({ onRefresh, terminalState, setTerminalState, headerAct
                 <span className="text-foreground">{line.content}</span>
               </>
             )}
-            {line.type === 'output' && <span className="terminal-output">{line.content}</span>}
-            {line.type === 'muted' && <span className="text-terminal-text whitespace-pre-wrap">{line.content}</span>}
-            {line.type === 'error' && <span className="terminal-error">{line.content}</span>}
-            {line.type === 'success' && <span className="terminal-success">{line.content}</span>}
-            {line.type === 'info' && <span className="text-primary glow-text">{line.content}</span>}
+            {line.type === 'output' && <span className="terminal-output">{renderContent(line.content)}</span>}
+            {line.type === 'muted' && <span className="text-terminal-text whitespace-pre-wrap">{renderContent(line.content)}</span>}
+            {line.type === 'error' && <span className="terminal-error">{renderContent(line.content)}</span>}
+            {line.type === 'success' && <span className="terminal-success">{renderContent(line.content)}</span>}
+            {line.type === 'info' && <span className="text-primary glow-text">{renderContent(line.content)}</span>}
           </div>
         ))}
 
