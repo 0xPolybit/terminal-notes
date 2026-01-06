@@ -153,6 +153,123 @@ export async function getAllItems(): Promise<FileSystemItem[]> {
   return database.getAll('files');
 }
 
+export async function moveItem(sourcePath: string, destPath: string): Promise<void> {
+  const database = await initDB();
+  const source = await database.get('files', sourcePath) as FileSystemItem | undefined;
+  
+  if (!source) throw new Error(`Source not found: ${sourcePath}`);
+  if (sourcePath === '/') throw new Error('Cannot move root directory');
+
+  // Handle destination
+  let finalDestPath = destPath;
+  const destItem = await database.get('files', destPath) as FileSystemItem | undefined;
+
+  // If destination is a folder, move into it
+  if (destItem?.type === 'folder') {
+    finalDestPath = destPath === '/' ? `/${source.name}` : `${destPath}/${source.name}`;
+  }
+  // If destination exists and is a file, fail (or we could overwrite)
+  else if (destItem) {
+    throw new Error(`Destination already exists: ${destPath}`);
+  }
+
+  // Circular check
+  if (source.type === 'folder' && (finalDestPath === sourcePath || finalDestPath.startsWith(sourcePath + '/'))) {
+    throw new Error('Cannot move directory into itself');
+  }
+
+  // Calculate changes
+  const parentPath = finalDestPath.substring(0, finalDestPath.lastIndexOf('/')) || '/';
+  const name = finalDestPath.split('/').pop() || source.name;
+
+  // Move the item itself
+  await database.put('files', {
+    ...source,
+    path: finalDestPath,
+    parentPath,
+    name,
+    updatedAt: Date.now(),
+  });
+
+  // If it's a folder, move all children
+  if (source.type === 'folder') {
+    const allItems = await database.getAll('files') as FileSystemItem[];
+    const children = allItems.filter(item => item.path.startsWith(sourcePath + '/'));
+    
+    for (const child of children) {
+      const suffix = child.path.substring(sourcePath.length);
+      const newChildPath = finalDestPath + suffix;
+      const newChildParent = newChildPath.substring(0, newChildPath.lastIndexOf('/')) || '/';
+      
+      await database.put('files', {
+        ...child,
+        path: newChildPath,
+        parentPath: newChildParent,
+        updatedAt: Date.now(),
+      });
+      await database.delete('files', child.path);
+    }
+  }
+
+  // Remove old item
+  await database.delete('files', sourcePath);
+}
+
+export async function copyItem(sourcePath: string, destPath: string): Promise<void> {
+  const database = await initDB();
+  const source = await database.get('files', sourcePath) as FileSystemItem | undefined;
+  
+  if (!source) throw new Error(`Source not found: ${sourcePath}`);
+  if (sourcePath === '/') throw new Error('Cannot copy root directory');
+
+  // Handle destination
+  let finalDestPath = destPath;
+  const destItem = await database.get('files', destPath) as FileSystemItem | undefined;
+
+  if (destItem?.type === 'folder') {
+    finalDestPath = destPath === '/' ? `/${source.name}` : `${destPath}/${source.name}`;
+  } else if (destItem) {
+    throw new Error(`Destination already exists: ${destPath}`);
+  }
+
+  if (source.type === 'folder' && (finalDestPath === sourcePath || finalDestPath.startsWith(sourcePath + '/'))) {
+    throw new Error('Cannot copy directory into itself');
+  }
+
+  // Copy the item
+  const parentPath = finalDestPath.substring(0, finalDestPath.lastIndexOf('/')) || '/';
+  const name = finalDestPath.split('/').pop() || source.name;
+
+  await database.put('files', {
+    ...source,
+    path: finalDestPath,
+    parentPath,
+    name,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  // If folder, copy children
+  if (source.type === 'folder') {
+    const allItems = await database.getAll('files') as FileSystemItem[];
+    const children = allItems.filter(item => item.path.startsWith(sourcePath + '/'));
+    
+    for (const child of children) {
+      const suffix = child.path.substring(sourcePath.length);
+      const newChildPath = finalDestPath + suffix;
+      const newChildParent = newChildPath.substring(0, newChildPath.lastIndexOf('/')) || '/';
+      
+      await database.put('files', {
+        ...child,
+        path: newChildPath,
+        parentPath: newChildParent,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  }
+}
+
 export function resolvePath(currentPath: string, targetPath: string): string {
   if (targetPath.startsWith('/')) {
     return normalizePath(targetPath);
