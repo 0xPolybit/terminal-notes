@@ -7,6 +7,10 @@ import {
   getItem,
   updateFile,
   resolvePath,
+  getAllItems,
+  moveItem,
+  copyItem,
+  FileSystemItem,
 } from '@/lib/fileSystem';
 
 interface OutputLine {
@@ -127,7 +131,14 @@ export function Terminal({ onRefresh, terminalState, setTerminalState, headerAct
             { type: 'output', content: '  touch <name>  - Create a new file' },
             { type: 'output', content: '  cat <file>    - Display file contents' },
             { type: 'output', content: '  edit <file>   - Edit (Ctrl+C=save, Esc=cancel)' },
+            { type: 'output', content: '  grep <query>  - Search in all files' },
+            { type: 'output', content: '  cp <src> <dst>- Copy file or folder' },
+            { type: 'output', content: '  mv <src> <dst>- Move/Rename file or folder' },
             { type: 'output', content: '  rm <path>     - Remove file or folder' },
+            { type: 'output', content: '  tree          - Show directory structure' },
+            { type: 'output', content: '  wc <file>     - Word/Char count' },
+            { type: 'output', content: '  export [file] - Download note(s)' },
+            { type: 'output', content: '  date          - Show time' },
             { type: 'output', content: '  credits       - Show developer information' },
             { type: 'output', content: '  clear         - Clear terminal' },
             { type: 'output', content: '' },
@@ -253,6 +264,154 @@ export function Terminal({ onRefresh, terminalState, setTerminalState, headerAct
             onRefresh?.();
           }
           break;
+        }
+
+        case 'grep': {
+          if (args.length === 0) {
+            addOutput([{ type: 'error', content: 'grep: missing search query' }]);
+          } else {
+            const query = args.join(' ');
+            const allFiles = await getAllItems();
+            const matches = allFiles.filter(
+              (f) => f.type === 'file' && f.content.toLowerCase().includes(query.toLowerCase())
+            );
+
+            if (matches.length === 0) {
+              addOutput([{ type: 'output', content: 'No matches found.' }]);
+            } else {
+              const lines = matches.map((f) => ({
+                type: 'output' as const,
+                content: `${f.path}: ...found "${query}"...`,
+              }));
+              addOutput(lines);
+            }
+          }
+          break;
+        }
+
+        case 'mv': {
+          if (args.length < 2) {
+            addOutput([{ type: 'error', content: 'mv: missing source or destination' }]);
+          } else {
+            const src = resolvePath(currentPath, args[0]);
+            const dst = resolvePath(currentPath, args[1]);
+            try {
+              await moveItem(src, dst);
+              addOutput([{ type: 'success', content: `Moved ${args[0]} to ${args[1]}` }]);
+              onRefresh?.();
+            } catch (e) {
+               addOutput([{ type: 'error', content: `mv: ${e instanceof Error ? e.message : 'failed'}` }]);
+            }
+          }
+          break;
+        }
+
+        case 'cp': {
+          if (args.length < 2) {
+            addOutput([{ type: 'error', content: 'cp: missing source or destination' }]);
+          } else {
+            const src = resolvePath(currentPath, args[0]);
+            const dst = resolvePath(currentPath, args[1]);
+             try {
+              await copyItem(src, dst);
+              addOutput([{ type: 'success', content: `Copied ${args[0]} to ${args[1]}` }]);
+              onRefresh?.();
+             } catch (e) {
+               addOutput([{ type: 'error', content: `cp: ${e instanceof Error ? e.message : 'failed'}` }]);
+             }
+          }
+          break;
+        }
+
+        case 'tree': {
+          const allItems = await getAllItems();
+          // Simple tree visualization
+          const rootItems = allItems.filter(i => i.parentPath === currentPath);
+          // Actually, 'tree' usually shows full recursive tree from current directory.
+          // Let's iterate.
+          
+          const buildTree = (path: string, prefix: string = '') => {
+             const items = allItems
+                .filter(i => i.parentPath === path)
+                .sort((a, b) => (a.type === 'folder' ? -1 : 1));
+             
+             const lines: OutputLine[] = [];
+             items.forEach((item, index) => {
+                const isLast = index === items.length - 1;
+                const marker = isLast ? '└── ' : '├── ';
+                const newPrefix = prefix + (isLast ? '    ' : '│   ');
+                
+                lines.push({ type: 'output', content: `${prefix}${marker}${item.name}${item.type === 'folder' ? '/' : ''}` });
+                
+                if (item.type === 'folder') {
+                   lines.push(...buildTree(item.path, newPrefix));
+                }
+             });
+             return lines;
+          };
+
+          const treeLines = buildTree(currentPath);
+          if (treeLines.length === 0) {
+              addOutput([{ type: 'muted', content: '(empty directory)' }]);
+          } else {
+              addOutput([{ type: 'output', content: '.' }, ...treeLines]);
+          }
+          break;
+        }
+
+        case 'wc': {
+          if (args.length === 0) {
+             addOutput([{ type: 'error', content: 'wc: missing filename' }]);
+          } else {
+             const filePath = resolvePath(currentPath, args[0]);
+             const item = await getItem(filePath);
+             if (!item || item.type !== 'file') {
+                 addOutput([{ type: 'error', content: `wc: invalid file: ${args[0]}` }]);
+             } else {
+                 const lines = item.content.split('\n').length;
+                 const words = item.content.trim() === '' ? 0 : item.content.trim().split(/\s+/).length;
+                 const chars = item.content.length;
+                 addOutput([{ type: 'output', content: `  ${lines}  ${words}  ${chars} ${item.name}` }]);
+             }
+          }
+          break;
+        }
+
+        case 'export': {
+           if (args.length > 0) {
+               // Export single file
+               const filePath = resolvePath(currentPath, args[0]);
+               const item = await getItem(filePath);
+               if (!item || item.type !== 'file') {
+                   addOutput([{ type: 'error', content: `export: file not found: ${args[0]}` }]);
+               } else {
+                   const blob = new Blob([item.content], { type: 'text/markdown' });
+                   const url = URL.createObjectURL(blob);
+                   const a = document.createElement('a');
+                   a.href = url;
+                   a.download = item.name.endsWith('.md') ? item.name : `${item.name}.md`;
+                   a.click();
+                   URL.revokeObjectURL(url);
+                   addOutput([{ type: 'success', content: `Exported ${item.name}` }]);
+               }
+           } else {
+               // Export all as JSON backup
+               const allItems = await getAllItems();
+               const blob = new Blob([JSON.stringify(allItems, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `terminal-notes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                addOutput([{ type: 'success', content: 'Exported workspace backup' }]);
+           }
+           break;
+        }
+        
+        case 'date': {
+            addOutput([{ type: 'output', content: new Date().toString() }]);
+            break;
         }
 
         case 'clear':
